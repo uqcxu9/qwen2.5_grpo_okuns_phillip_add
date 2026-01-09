@@ -1,0 +1,25 @@
+# 大型模型文件
+*.pt
+*.bin
+model_world_size_*.pt
+optim_world_size_*.pt
+huggingface/
+
+# 数据文件
+*.pkl
+*.parquet
+data/gpt-3-noperception-reflection-1-100agents-240months/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 日志和临时文件
+*.log
+outputs/
+.hydra/
+
+# 但保留 LoRA adapter (小文件)
+!checkpoints/global_step_*/actor/lora_adapter/
+!checkpoints/global_step_*/actor/lora_adapter/*

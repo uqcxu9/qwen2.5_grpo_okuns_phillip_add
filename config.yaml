@@ -1,0 +1,180 @@
+# VERL GRPO 训练配置 - 纯字段配置（无 _target_）
+
+# 数据配置
+data:
+  train_files: /workspace/QWEN2.5_42_7b_main/RL/verl_dataset/train.parquet
+  val_files: /workspace/QWEN2.5_42_7b_main/RL/verl_dataset/val.parquet
+  prompt_key: prompt
+  max_prompt_length: 1536
+  max_response_length: 128
+  train_batch_size: 2
+  val_batch_size: 1
+  truncation: left
+  shuffle: true
+  seed: 42
+  return_raw_input_ids: false
+  return_raw_chat: false
+
+# 模型 & Actor & Rollout 配置
+actor_rollout_ref:
+  hybrid_engine: true
+  nccl_timeout: 600
+
+  model:
+    path: /workspace/models/Qwen2.5-7B-Instruct
+    trust_remote_code: true
+    use_remove_padding: false
+    enable_gradient_checkpointing: true
+    override_config:
+      attn_implementation: eager
+    lora_rank: 8
+    lora_alpha: 16
+    target_modules: all-linear
+
+  actor:
+    strategy: fsdp
+    use_dynamic_bsz: false
+    ppo_mini_batch_size: 2
+    ppo_micro_batch_size_per_gpu: 1
+    grad_clip: 1.0
+    clip_ratio: 0.2
+    entropy_coeff: 0.10
+    use_kl_loss: false
+    loss_agg_mode: token-mean
+    optim:
+      lr: 1e-5
+      weight_decay: 0.01
+    fsdp_config:
+      dtype: bfloat16
+      model_dtype: bfloat16
+      fsdp_size: 1
+      param_offload: true
+      optimizer_offload: true
+      use_torch_compile: false
+      wrap_policy:
+        min_num_params: 0
+
+  ref:
+    fsdp_config:
+      param_offload: true
+      use_torch_compile: false
+      wrap_policy:
+        min_num_params: 0
+    log_prob_micro_batch_size_per_gpu: 1
+
+  rollout:
+    name: vllm
+    mode: async
+    tensor_model_parallel_size: 1
+    data_parallel_size: 1
+    pipeline_model_parallel_size: 1
+    temperature: 1.2
+    top_p: 1.0
+    top_k: -1
+    n: 8
+    gpu_memory_utilization: 0.5
+    max_model_len: 2048
+    max_num_seqs: 4
+    enforce_eager: true
+    free_cache_engine: true
+    log_prob_micro_batch_size_per_gpu: 1
+    dtype: bfloat16
+    load_format: dummy
+    prompt_length: 1536
+    response_length: 128
+    ignore_eos: false
+    disable_log_stats: true
+    do_sample: true
+    enable_chunked_prefill: true
+    enable_prefix_caching: true
+    skip_tokenizer_init: true
+    val_kwargs:
+      temperature: 0.0
+      top_p: 1.0
+      top_k: -1
+      n: 1
+      do_sample: false
+    multi_turn:
+      enable: false
+    trace:
+      backend: null
+
+# 算法配置 (GRPO)
+algorithm:
+  gamma: 1.0
+  lam: 1.0
+  adv_estimator: grpo
+  norm_adv_by_std_in_grpo: true
+  use_kl_in_reward: false
+  kl_penalty: kl
+  kl_ctrl:
+    type: fixed
+    kl_coef: 0.003
+    horizon: 10000
+    target_kl: 0.1
+  rollout_correction:
+    enable: false
+
+# Critic（禁用）
+critic:
+  enable: false
+  strategy: fsdp
+
+# Reward Model（禁用）
+reward_model:
+  enable: false
+
+# Reward Manager
+reward_manager:
+  reward_weights: null
+
+# 自定义 Reward Function
+custom_reward_function:
+  path: /workspace/QWEN2.5_42_7b_main/RL/reward.py
+  name: compute_score
+
+# 训练器配置
+trainer:
+  balance_batch: true
+  total_epochs: 1
+  total_training_steps: 1000
+  project_name: econ_grpo
+  experiment_name: qwen25_grpo_v1
+  logger:
+    - console
+  nnodes: 1
+  n_gpus_per_node: 1
+  save_freq: 1000
+  val_before_train: false
+  test_freq: 1000
+  critic_warmup: 0
+  resume_mode: auto
+  del_local_ckpt_after_load: false
+  default_local_dir: /workspace/QWEN2.5_42_7b_main/checkpoints
+  default_hdfs_dir: null
+  ray_wait_register_center_timeout: 600
+  device: cuda
+  log_val_generations: 0
+  esi_redundant_time: 0
+  val_only: false
+  rollout_data_dir: null
+  validation_data_dir: null
+  max_actor_ckpt_to_keep: null
+  max_critic_ckpt_to_keep: null
+  use_legacy_worker_impl: auto
+
+# Profiler（禁用）
+global_profiler:
+  tool: null
+  steps: null
+  profile_continuous_steps: false
+  save_path: outputs/profile
+
+# Transfer Queue（禁用）
+transfer_queue:
+  enable: false
+
+# Ray 配置
+ray_kwargs:
+  ray_init:
+    address: "172.17.0.3:6379"
